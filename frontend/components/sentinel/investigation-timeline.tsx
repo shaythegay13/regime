@@ -8,7 +8,7 @@ interface InvestigationTimelineProps {
   visibleCount: number
   memory: MemoryMatch | null
   verdict: Verdict
-  phase: 'fetching' | 'revealing' | 'complete'
+  phase: 'ready' | 'fetching' | 'revealing' | 'complete'
 }
 
 export function InvestigationTimeline({

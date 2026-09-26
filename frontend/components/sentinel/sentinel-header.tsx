@@ -1,4 +1,4 @@
-import { LoaderCircle, Play, ShieldCheck } from 'lucide-react'
+import { LoaderCircle, Play, RotateCcw, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { MemoryStoreStatus } from '@/lib/sentinel/types'
 import { cn } from '@/lib/utils'
@@ -6,16 +6,18 @@ import { cn } from '@/lib/utils'
 interface SentinelHeaderProps {
   memoryStore: MemoryStoreStatus
   running: boolean
+  ready: boolean
   onRun: () => void
+  onReset: () => void
 }
 
 const storeLabel: Record<MemoryStoreStatus['status'], string> = {
-  connected: 'connected',
+  connected: 'live memory',
   demo: 'demo data',
   unavailable: 'unavailable',
 }
 
-export function SentinelHeader({ memoryStore, running, onRun }: SentinelHeaderProps) {
+export function SentinelHeader({ memoryStore, running, ready, onRun, onReset }: SentinelHeaderProps) {
   return (
     <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
@@ -52,7 +54,11 @@ export function SentinelHeader({ memoryStore, running, onRun }: SentinelHeaderPr
             </span>
           </span>
         </div>
-        <Button onClick={onRun} disabled={running} className="gap-2">
+        <Button variant="outline" onClick={onReset} disabled={running} className="gap-2">
+          <RotateCcw className="size-4" aria-hidden="true" />
+          Reset Demo
+        </Button>
+        <Button onClick={onRun} disabled={running || !ready} className="gap-2">
           {running ? (
             <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
           ) : (

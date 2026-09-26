@@ -9,55 +9,78 @@ import { InvestigationTimeline } from './investigation-timeline'
 import { MemoryPanel } from './memory-panel'
 import { SentinelHeader } from './sentinel-header'
 
-type Phase = 'fetching' | 'revealing' | 'complete'
+type Phase = 'ready' | 'fetching' | 'revealing' | 'complete'
 
-const STEP_REVEAL_MS = 1100
+const MEMORY_REVEAL_MS = 700
+const STEP_REVEAL_MS = 800
 
 export function SentinelConsole({ initialRun }: { initialRun: InvestigationRun }) {
   const [run, setRun] = useState(initialRun)
-  const [phase, setPhase] = useState<Phase>('complete')
-  const [visibleCount, setVisibleCount] = useState(initialRun.steps.length)
+  const [phase, setPhase] = useState<Phase>('ready')
+  const [visibleCount, setVisibleCount] = useState(0)
+  const [memoryVisible, setMemoryVisible] = useState(false)
+  const [dataReady, setDataReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (phase === 'fetching') {
+      const timer = setTimeout(() => {
+        setMemoryVisible(true)
+        setPhase('revealing')
+      }, MEMORY_REVEAL_MS)
+      return () => clearTimeout(timer)
+    }
     if (phase !== 'revealing') return
     const done = visibleCount >= run.steps.length
     const timer = setTimeout(
       () => (done ? setPhase('complete') : setVisibleCount((count) => count + 1)),
-      done ? 600 : STEP_REVEAL_MS,
+      done ? 500 : STEP_REVEAL_MS,
     )
     return () => clearTimeout(timer)
   }, [phase, visibleCount, run.steps.length])
 
-  async function handleRun() {
-    const previous = run
-    setError(null)
-    setVisibleCount(0)
-    setPhase('fetching')
+  useEffect(() => {
+    void loadPersistedDemo()
+  }, [])
+
+  async function loadPersistedDemo() {
     try {
-      const res = await fetch('/api/investigate', { method: 'POST' })
+      const res = await fetch('/api/investigate', { cache: 'no-store' })
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
       const next = (await res.json()) as InvestigationRun
+      if (next.source !== 'backend') throw new Error('Backend proxy returned fallback demo data')
+      console.log('Loaded investigation source:', next.source)
+      console.log('Loaded entity:', next.alert.entity)
       setRun(next)
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        setVisibleCount(next.steps.length)
-        setPhase('complete')
-      } else {
-        setPhase('revealing')
-      }
+      setVisibleCount(0)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Investigation failed')
-      setRun(previous)
-      setVisibleCount(previous.steps.length)
-      setPhase('complete')
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      console.error('Sentinel persisted demo load failed:', message)
+      setError(`Live backend unavailable (${message}). Showing fallback demo data.`)
+    } finally {
+      setDataReady(true)
     }
+  }
+
+  function handleRun() {
+    setError(null)
+    setVisibleCount(0)
+    setMemoryVisible(false)
+    setPhase('fetching')
+  }
+
+  function handleReset() {
+    setError(null)
+    setVisibleCount(0)
+    setMemoryVisible(false)
+    setPhase('ready')
   }
 
   const notice = error ?? run.notice
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col gap-5 px-4 py-6 md:px-6 lg:py-8">
-      <SentinelHeader memoryStore={run.memoryStore} running={phase !== 'complete'} onRun={handleRun} />
+      <SentinelHeader memoryStore={run.memoryStore} running={phase === 'fetching' || phase === 'revealing'} ready={dataReady} onRun={handleRun} onReset={handleReset} />
 
       <StoryStrip />
 
@@ -74,18 +97,18 @@ export function SentinelConsole({ initialRun }: { initialRun: InvestigationRun }
       <div className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]">
         <div className="flex flex-col gap-5">
           <AlertPanel alert={run.alert} />
-          <MemoryPanel memory={run.memory} retrieving={phase === 'fetching'} />
+          <MemoryPanel memory={memoryVisible ? run.memory : null} retrieving={phase === 'fetching'} />
         </div>
         <InvestigationTimeline
           steps={run.steps}
           visibleCount={visibleCount}
-          memory={run.memory}
+          memory={memoryVisible ? run.memory : null}
           verdict={run.verdict}
           phase={phase}
         />
       </div>
 
-      <AdaptationResult adaptation={run.adaptation} ready={phase === 'complete'} />
+      {phase === 'complete' && <AdaptationResult adaptation={run.adaptation} ready />}
     </main>
   )
 }
