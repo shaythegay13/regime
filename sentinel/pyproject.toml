@@ -25,5 +25,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
+[tool.setuptools.packages.find]
+include = ["sentinel*"]
+exclude = ["api*", "tests*"]
+
 [tool.vercel]
 entrypoint = "api.demo:handler"
